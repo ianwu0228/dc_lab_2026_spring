@@ -238,4 +238,75 @@ HexTo7Seg hex_dec_2 (.i_hex(display_mag_data[11:8]),  .o_seg(HEX2));
 HexTo7Seg hex_dec_3 (.i_hex(display_mag_data[15:12]), .o_seg(HEX3));
 
 
+
+// =====================================================================
+// LCD display for QMC5883P magnetic field values
+// =====================================================================
+
+assign LCD_ON   = 1'b1;
+assign LCD_BLON = 1'b1;
+
+// Convert 4-bit hex value to ASCII character
+function automatic [7:0] hex_to_ascii;
+    input [3:0] hex;
+    begin
+        if (hex < 4'd10)
+            hex_to_ascii = 8'h30 + hex;               // 0-9
+        else
+            hex_to_ascii = 8'h41 + (hex - 4'd10);     // A-F
+    end
+endfunction
+
+// Convert 16-bit value to four ASCII hex characters
+function automatic [31:0] word_to_hex_ascii;
+    input [15:0] value;
+    begin
+        word_to_hex_ascii = {
+            hex_to_ascii(value[15:12]),
+            hex_to_ascii(value[11:8]),
+            hex_to_ascii(value[7:4]),
+            hex_to_ascii(value[3:0])
+        };
+    end
+endfunction
+
+wire [127:0] lcd_line1;
+wire [127:0] lcd_line2;
+wire [31:0]  chip_id_ascii;
+
+assign chip_id_ascii = word_to_hex_ascii({8'h00, qmc1_dbg_chip_id});
+
+// Exactly 16 characters:
+// "X=1234 Y=5678   "
+assign lcd_line1 = {
+    "X=",
+    word_to_hex_ascii(mag1_x),
+    " Y=",
+    word_to_hex_ascii(mag1_y),
+    "   "
+};
+
+// Exactly 16 characters:
+// "Z=1234 ID=80  "
+assign lcd_line2 = {
+    "Z=",
+    word_to_hex_ascii(mag1_z),
+    " ID=",
+    chip_id_ascii[15:0],
+    "  "
+};
+
+lcd_1602_controller u_lcd (
+    .clk      (CLOCK_50),
+    .rst_n    (key3down),
+
+    .line1    (lcd_line1),
+    .line2    (lcd_line2),
+
+    .lcd_data (LCD_DATA),
+    .lcd_rs   (LCD_RS),
+    .lcd_rw   (LCD_RW),
+    .lcd_en   (LCD_EN)
+);
+
 endmodule
