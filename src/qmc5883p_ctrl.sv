@@ -75,17 +75,96 @@ module qmc5883l_ctrl (
 
     localparam CHIP_ID_EXPECT = 8'h80;
 
-    // CONTROL1 = 0x1F:
-    // bits [1:0] mode = 3 continuous
-    // bits [3:2] ODR  = 3 200 Hz
-    // bits [5:4] OSR  = 1 OSR=4
-    // bits [7:6] DSR  = 0 DSR=1
-    localparam CTRL1_VALUE    = 8'h1F;
+    // // CONTROL1 = 0x1F:
+    // // bits [1:0] mode = 3 continuous
+    // // bits [3:2] ODR  = 3 200 Hz
+    // // bits [5:4] OSR  = 1 OSR=4
+    // // bits [7:6] DSR  = 0 DSR=1
+    // localparam CTRL1_VALUE    = 8'h1F;
 
-    // CONTROL2 = 0x0C:
-    // bits [1:0] set/reset = 0 set/reset on
-    // bits [3:2] range     = 3 +-2G
-    localparam CTRL2_VALUE    = 8'h0C;
+    // // CONTROL2 = 0x0C:
+    // // bits [1:0] set/reset = 0 set/reset on
+    // // bits [3:2] range     = 3 +-2G
+    // localparam CTRL2_VALUE    = 8'h0C;
+    
+    ====================================================================================
+    // ============================================================
+    // QMC5883P user configuration
+    // ============================================================
+
+    // --------------------
+    // MODE bits [1:0]
+    // --------------------
+    localparam [1:0] QMC_MODE_SUSPEND    = 2'b00;
+    localparam [1:0] QMC_MODE_NORMAL     = 2'b01;
+    localparam [1:0] QMC_MODE_SINGLE     = 2'b10;
+    localparam [1:0] QMC_MODE_CONTINUOUS = 2'b11;
+
+    // --------------------
+    // ODR bits [3:2]
+    // --------------------
+    localparam [1:0] QMC_ODR_10HZ  = 2'b00;
+    localparam [1:0] QMC_ODR_50HZ  = 2'b01;
+    localparam [1:0] QMC_ODR_100HZ = 2'b10;
+    localparam [1:0] QMC_ODR_200HZ = 2'b11;
+
+    // --------------------
+    // OSR bits [5:4]
+    // --------------------
+    localparam [1:0] QMC_OSR_8 = 2'b00;
+    localparam [1:0] QMC_OSR_4 = 2'b01;
+    localparam [1:0] QMC_OSR_2 = 2'b10;
+    localparam [1:0] QMC_OSR_1 = 2'b11;
+
+    // --------------------
+    // DSR bits [7:6]
+    // --------------------
+    localparam [1:0] QMC_DSR_1 = 2'b00;
+    localparam [1:0] QMC_DSR_2 = 2'b01;
+    localparam [1:0] QMC_DSR_4 = 2'b10;
+    localparam [1:0] QMC_DSR_8 = 2'b11;
+
+    // --------------------
+    // RANGE bits [3:2] of CTRL2
+    // --------------------
+    localparam [1:0] QMC_RANGE_30G = 2'b00;
+    localparam [1:0] QMC_RANGE_12G = 2'b01;
+    localparam [1:0] QMC_RANGE_8G  = 2'b10;
+    localparam [1:0] QMC_RANGE_2G  = 2'b11;
+
+    // --------------------
+    // SET/RESET bits [1:0] of CTRL2
+    // --------------------
+    localparam [1:0] QMC_SETRESET_ON      = 2'b00;
+    localparam [1:0] QMC_SETRESET_SETONLY = 2'b01;
+    localparam [1:0] QMC_SETRESET_OFF     = 2'b10;
+
+    // ============================================================
+    // Select your desired sensor configuration here
+    // ============================================================
+
+    localparam [1:0] CFG_MODE     = QMC_MODE_CONTINUOUS;
+    localparam [1:0] CFG_ODR      = QMC_ODR_200HZ;
+    localparam [1:0] CFG_OSR      = QMC_OSR_4;
+    localparam [1:0] CFG_DSR      = QMC_DSR_1;
+    localparam [1:0] CFG_RANGE    = QMC_RANGE_2G;
+    localparam [1:0] CFG_SETRESET = QMC_SETRESET_ON;
+
+    localparam [7:0] CTRL1_VALUE = {
+        CFG_DSR,      // bits [7:6]
+        CFG_OSR,      // bits [5:4]
+        CFG_ODR,      // bits [3:2]
+        CFG_MODE      // bits [1:0]
+    };
+
+    localparam [7:0] CTRL2_VALUE = {
+        4'b0000,       // bits [7:4], unused/reserved
+        CFG_RANGE,     // bits [3:2]
+        CFG_SETRESET   // bits [1:0]
+    };
+
+    ==============================================================================
+
 
     // 20 ms at 50 MHz = 1,000,000 cycles
     localparam DELAY_20MS = 20'd1_000_000;
