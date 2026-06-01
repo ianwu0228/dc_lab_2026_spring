@@ -1,3 +1,7 @@
+
+
+
+
 module qmc5883l_ctrl (
     input  wire        clk,       // 50 MHz system clock
     input  wire        rst_n,     // Active-low reset

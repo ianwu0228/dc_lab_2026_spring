@@ -155,223 +155,79 @@ assign HEX7 = '1;
 // QMC5883P 磁力計硬體連接與三態緩衝器實作
 // =====================================================================
 
-// --- 四顆磁力計的獨立 I2C bus，依序使用 GPIO[0] ~ GPIO[7] ---
-wire [3:0]  qmc_scl;
-wire [3:0]  qmc_sda_out;
-wire [3:0]  qmc_sda_in;
-wire [3:0]  qmc_sda_dir;
+// --- 磁力計 1 內部訊號與三態控制 (使用 GPIO[0] 與 GPIO[1]) ---
+wire        qmc1_scl;
+wire        qmc1_sda_out;
+wire        qmc1_sda_in;
+wire        qmc1_sda_dir;
 wire [15:0] mag1_x, mag1_y, mag1_z;
-wire [15:0] mag2_x, mag2_y, mag2_z;
-wire [15:0] mag3_x, mag3_y, mag3_z;
-wire [15:0] mag4_x, mag4_y, mag4_z;
-wire [4:0]  qmc_dbg_state [0:3];
-wire [3:0]  qmc_dbg_err;
-wire [7:0]  qmc_dbg_chip_id [0:3];
-wire [3:0]  qmc_dbg_chip_id_valid;
-wire [3:0]  qmc_dbg_chip_id_ok;
-wire [3:0]  qmc_dbg_init_done;
-wire [3:0]  qmc_dbg_ack_error_latched;
+wire [4:0]  qmc1_dbg_state;
+wire        qmc1_dbg_err;
+wire [7:0]  qmc1_dbg_chip_id;
+wire        qmc1_dbg_chip_id_valid;
+wire        qmc1_dbg_chip_id_ok;
+wire        qmc1_dbg_init_done;
+wire        qmc1_dbg_ack_error_latched;
 
-assign GPIO[0] = qmc_scl[0];
-assign GPIO[1] = (qmc_sda_dir[0] && (qmc_sda_out[0] == 1'b0)) ? 1'b0 : 1'bz;
-assign qmc_sda_in[0] = GPIO[1];
-
-assign GPIO[2] = qmc_scl[1];
-assign GPIO[3] = (qmc_sda_dir[1] && (qmc_sda_out[1] == 1'b0)) ? 1'b0 : 1'bz;
-assign qmc_sda_in[1] = GPIO[3];
-
-assign GPIO[4] = qmc_scl[2];
-assign GPIO[5] = (qmc_sda_dir[2] && (qmc_sda_out[2] == 1'b0)) ? 1'b0 : 1'bz;
-assign qmc_sda_in[2] = GPIO[5];
-
-assign GPIO[6] = qmc_scl[3];
-assign GPIO[7] = (qmc_sda_dir[3] && (qmc_sda_out[3] == 1'b0)) ? 1'b0 : 1'bz;
-assign qmc_sda_in[3] = GPIO[7];
+assign GPIO[0] = qmc1_scl;
+assign GPIO[1] = (qmc1_sda_dir && (qmc1_sda_out == 1'b0)) ? 1'b0 : 1'bz; // I2C SDA open-drain: drive low only; release for high/ACK/read
+assign qmc1_sda_in = GPIO[1];
 
 
 // =====================================================================
 // 實體化控制大腦 (完全平行獨立運作)
 // =====================================================================
 
-// Module name remains qmc5883l_ctrl, but the file is now fixed for QMC5883P.
+// 磁力計 1 控制器：module name remains qmc5883l_ctrl, but the file is now fixed for QMC5883P.
 qmc5883l_ctrl u_qmc_1 (
     .clk(CLOCK_50),       
     .rst_n(key3down),       
-    .i2c_scl(qmc_scl[0]),
-    .sda_out(qmc_sda_out[0]),
-    .sda_in(qmc_sda_in[0]),
-    .sda_dir(qmc_sda_dir[0]),
+    .i2c_scl(qmc1_scl),
+    .sda_out(qmc1_sda_out),
+    .sda_in(qmc1_sda_in),
+    .sda_dir(qmc1_sda_dir),
     .mag_x(mag1_x),
     .mag_y(mag1_y),
     .mag_z(mag1_z),
     
-    .dbg_state(qmc_dbg_state[0]),
-    .dbg_err(qmc_dbg_err[0]),
-    .dbg_chip_id(qmc_dbg_chip_id[0]),
-    .dbg_chip_id_valid(qmc_dbg_chip_id_valid[0]),
-    .dbg_chip_id_ok(qmc_dbg_chip_id_ok[0]),
-    .dbg_init_done(qmc_dbg_init_done[0]),
-    .dbg_ack_error_latched(qmc_dbg_ack_error_latched[0])
-);
-
-qmc5883l_ctrl u_qmc_2 (
-    .clk(CLOCK_50),
-    .rst_n(key3down),
-    .i2c_scl(qmc_scl[1]),
-    .sda_out(qmc_sda_out[1]),
-    .sda_in(qmc_sda_in[1]),
-    .sda_dir(qmc_sda_dir[1]),
-    .mag_x(mag2_x),
-    .mag_y(mag2_y),
-    .mag_z(mag2_z),
-
-    .dbg_state(qmc_dbg_state[1]),
-    .dbg_err(qmc_dbg_err[1]),
-    .dbg_chip_id(qmc_dbg_chip_id[1]),
-    .dbg_chip_id_valid(qmc_dbg_chip_id_valid[1]),
-    .dbg_chip_id_ok(qmc_dbg_chip_id_ok[1]),
-    .dbg_init_done(qmc_dbg_init_done[1]),
-    .dbg_ack_error_latched(qmc_dbg_ack_error_latched[1])
-);
-
-qmc5883l_ctrl u_qmc_3 (
-    .clk(CLOCK_50),
-    .rst_n(key3down),
-    .i2c_scl(qmc_scl[2]),
-    .sda_out(qmc_sda_out[2]),
-    .sda_in(qmc_sda_in[2]),
-    .sda_dir(qmc_sda_dir[2]),
-    .mag_x(mag3_x),
-    .mag_y(mag3_y),
-    .mag_z(mag3_z),
-
-    .dbg_state(qmc_dbg_state[2]),
-    .dbg_err(qmc_dbg_err[2]),
-    .dbg_chip_id(qmc_dbg_chip_id[2]),
-    .dbg_chip_id_valid(qmc_dbg_chip_id_valid[2]),
-    .dbg_chip_id_ok(qmc_dbg_chip_id_ok[2]),
-    .dbg_init_done(qmc_dbg_init_done[2]),
-    .dbg_ack_error_latched(qmc_dbg_ack_error_latched[2])
-);
-
-qmc5883l_ctrl u_qmc_4 (
-    .clk(CLOCK_50),
-    .rst_n(key3down),
-    .i2c_scl(qmc_scl[3]),
-    .sda_out(qmc_sda_out[3]),
-    .sda_in(qmc_sda_in[3]),
-    .sda_dir(qmc_sda_dir[3]),
-    .mag_x(mag4_x),
-    .mag_y(mag4_y),
-    .mag_z(mag4_z),
-
-    .dbg_state(qmc_dbg_state[3]),
-    .dbg_err(qmc_dbg_err[3]),
-    .dbg_chip_id(qmc_dbg_chip_id[3]),
-    .dbg_chip_id_valid(qmc_dbg_chip_id_valid[3]),
-    .dbg_chip_id_ok(qmc_dbg_chip_id_ok[3]),
-    .dbg_init_done(qmc_dbg_init_done[3]),
-    .dbg_ack_error_latched(qmc_dbg_ack_error_latched[3])
+    .dbg_state(qmc1_dbg_state),
+    .dbg_err(qmc1_dbg_err),
+    .dbg_chip_id(qmc1_dbg_chip_id),
+    .dbg_chip_id_valid(qmc1_dbg_chip_id_valid),
+    .dbg_chip_id_ok(qmc1_dbg_chip_id_ok),
+    .dbg_init_done(qmc1_dbg_init_done),
+    .dbg_ack_error_latched(qmc1_dbg_ack_error_latched)
 );
 
 // =====================================================================
 // Debug LED mapping for QMC5883P bring-up
 // =====================================================================
-// SW[3:2]     = selected sensor: 00, 01, 10, 11 select sensors 1, 2, 3, 4.
-// LEDR[7:0]   = selected sensor chip ID. Expected QMC5883P chip ID is 8'h80.
+// LEDR[7:0]   = chip ID value. Expected QMC5883P chip ID is 8'h80, so LEDR[7] should be ON.
 // LEDR[8]     = chip ID has been read at least once.
 // LEDR[9]     = chip ID equals 8'h80.
 // LEDR[14:10] = controller FSM state[4:0].
 // LEDR[15]    = initialization completed: CONTROL1 and CONTROL2 were written.
 // LEDR[16]    = live ACK error pulse from I2C master.
 // LEDR[17]    = latched ACK error; stays ON after any ACK error until successful chip ID.
-// LEDG[3:0]   = initialization completed for sensors 1 through 4.
-// LEDG[7:4]   = latched ACK error for sensors 1 through 4.
-// LEDG[8]     = all four sensors initialized successfully.
-logic [15:0] selected_mag_x, selected_mag_y, selected_mag_z;
-logic [4:0]  selected_dbg_state;
-logic        selected_dbg_err;
-logic [7:0]  selected_dbg_chip_id;
-logic        selected_dbg_chip_id_valid;
-logic        selected_dbg_chip_id_ok;
-logic        selected_dbg_init_done;
-logic        selected_dbg_ack_error_latched;
-
-always_comb begin
-    case (SW[3:2])
-        2'b00: begin
-            selected_mag_x                 = mag1_x;
-            selected_mag_y                 = mag1_y;
-            selected_mag_z                 = mag1_z;
-            selected_dbg_state             = qmc_dbg_state[0];
-            selected_dbg_err               = qmc_dbg_err[0];
-            selected_dbg_chip_id           = qmc_dbg_chip_id[0];
-            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[0];
-            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[0];
-            selected_dbg_init_done         = qmc_dbg_init_done[0];
-            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[0];
-        end
-        2'b01: begin
-            selected_mag_x                 = mag2_x;
-            selected_mag_y                 = mag2_y;
-            selected_mag_z                 = mag2_z;
-            selected_dbg_state             = qmc_dbg_state[1];
-            selected_dbg_err               = qmc_dbg_err[1];
-            selected_dbg_chip_id           = qmc_dbg_chip_id[1];
-            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[1];
-            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[1];
-            selected_dbg_init_done         = qmc_dbg_init_done[1];
-            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[1];
-        end
-        2'b10: begin
-            selected_mag_x                 = mag3_x;
-            selected_mag_y                 = mag3_y;
-            selected_mag_z                 = mag3_z;
-            selected_dbg_state             = qmc_dbg_state[2];
-            selected_dbg_err               = qmc_dbg_err[2];
-            selected_dbg_chip_id           = qmc_dbg_chip_id[2];
-            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[2];
-            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[2];
-            selected_dbg_init_done         = qmc_dbg_init_done[2];
-            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[2];
-        end
-        default: begin
-            selected_mag_x                 = mag4_x;
-            selected_mag_y                 = mag4_y;
-            selected_mag_z                 = mag4_z;
-            selected_dbg_state             = qmc_dbg_state[3];
-            selected_dbg_err               = qmc_dbg_err[3];
-            selected_dbg_chip_id           = qmc_dbg_chip_id[3];
-            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[3];
-            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[3];
-            selected_dbg_init_done         = qmc_dbg_init_done[3];
-            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[3];
-        end
-    endcase
-end
-
-assign LEDR[7:0]   = selected_dbg_chip_id;
-assign LEDR[8]     = selected_dbg_chip_id_valid;
-assign LEDR[9]     = selected_dbg_chip_id_ok;
-assign LEDR[14:10] = selected_dbg_state;
-assign LEDR[15]    = selected_dbg_init_done;
-assign LEDR[16]    = selected_dbg_err;
-assign LEDR[17]    = selected_dbg_ack_error_latched;
-assign LEDG[3:0]   = qmc_dbg_init_done;
-assign LEDG[7:4]   = qmc_dbg_ack_error_latched;
-assign LEDG[8]     = &qmc_dbg_init_done;
+assign LEDR[7:0]   = qmc1_dbg_chip_id;
+assign LEDR[8]     = qmc1_dbg_chip_id_valid;
+assign LEDR[9]     = qmc1_dbg_chip_id_ok;
+assign LEDR[14:10] = qmc1_dbg_state;
+assign LEDR[15]    = qmc1_dbg_init_done;
+assign LEDR[16]    = qmc1_dbg_err;
+assign LEDR[17]    = qmc1_dbg_ack_error_latched;
 
 // =====================================================================
-// 觀察與驗證機制：SW[3:2] 選擇感測器，SW[1:0] 選擇 X, Y, Z 軸
+// 觀察與驗證機制：單顆感測器測試，利用 SW[1:0] 切換顯示 X, Y, Z 軸的數值
 // =====================================================================
 logic [15:0] display_mag_data;
 
 always_comb begin
     case (SW[1:0])
-        2'b00:   display_mag_data = selected_mag_x;
-        2'b01:   display_mag_data = selected_mag_y;
-        2'b10:   display_mag_data = selected_mag_z;
-        default: display_mag_data = selected_mag_x;
+        2'b00:   display_mag_data = mag1_x; // SW[1:0] 為 00 時：顯示 X 軸磁場
+        2'b01:   display_mag_data = mag1_y; // SW[1:0] 為 01 時：顯示 Y 軸磁場
+        2'b10:   display_mag_data = mag1_z; // SW[1:0] 為 10 時：顯示 Z 軸磁場
+        default: display_mag_data = mag1_x;
     endcase
 end
 
@@ -418,15 +274,15 @@ wire [127:0] lcd_line1;
 wire [127:0] lcd_line2;
 wire [31:0]  chip_id_ascii;
 
-assign chip_id_ascii = word_to_hex_ascii({8'h00, selected_dbg_chip_id});
+assign chip_id_ascii = word_to_hex_ascii({8'h00, qmc1_dbg_chip_id});
 
 // Exactly 16 characters:
 // "X=1234 Y=5678   "
 assign lcd_line1 = {
     "X=",
-    word_to_hex_ascii(selected_mag_x),
+    word_to_hex_ascii(mag1_x),
     " Y=",
-    word_to_hex_ascii(selected_mag_y),
+    word_to_hex_ascii(mag1_y),
     "   "
 };
 
@@ -434,7 +290,7 @@ assign lcd_line1 = {
 // "Z=1234 ID=80  "
 assign lcd_line2 = {
     "Z=",
-    word_to_hex_ascii(selected_mag_z),
+    word_to_hex_ascii(mag1_z),
     " ID=",
     chip_id_ascii[15:0],
     "  "
