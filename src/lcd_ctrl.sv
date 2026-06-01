@@ -182,7 +182,7 @@ module lcd_1602_controller (
 
                 // Refresh display about 5 times per second
                 S_REFRESH: begin
-                    if (delay_cnt < 32'd10_000_00) begin
+                    if (delay_cnt < 32'd10_000_000) begin
                         delay_cnt <= delay_cnt + 1'b1;
                     end else begin
                         delay_cnt <= 32'd0;

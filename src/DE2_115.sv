@@ -149,6 +149,7 @@ Debounce deb3(
 assign HEX4 = '1;
 assign HEX5 = '1;
 assign HEX6 = '1;
+assign HEX7 = '1;
 
 // =====================================================================
 // QMC5883P 磁力計硬體連接與三態緩衝器實作
@@ -163,11 +164,6 @@ wire [15:0] mag1_x, mag1_y, mag1_z;
 wire [15:0] mag2_x, mag2_y, mag2_z;
 wire [15:0] mag3_x, mag3_y, mag3_z;
 wire [15:0] mag4_x, mag4_y, mag4_z;
-wire signed [31:0] mag1_x_gauss_q16, mag1_y_gauss_q16, mag1_z_gauss_q16;
-wire signed [31:0] mag2_x_gauss_q16, mag2_y_gauss_q16, mag2_z_gauss_q16;
-wire signed [31:0] mag3_x_gauss_q16, mag3_y_gauss_q16, mag3_z_gauss_q16;
-wire signed [31:0] mag4_x_gauss_q16, mag4_y_gauss_q16, mag4_z_gauss_q16;
-wire        [31:0] range_gauss_q16;
 wire [4:0]  qmc_dbg_state [0:3];
 wire [3:0]  qmc_dbg_err;
 wire [7:0]  qmc_dbg_chip_id [0:3];
@@ -208,10 +204,6 @@ qmc5883l_ctrl u_qmc_1 (
     .mag_x(mag1_x),
     .mag_y(mag1_y),
     .mag_z(mag1_z),
-    .mag_x_gauss_q16(mag1_x_gauss_q16),
-    .mag_y_gauss_q16(mag1_y_gauss_q16),
-    .mag_z_gauss_q16(mag1_z_gauss_q16),
-    .range_gauss_q16(range_gauss_q16),
     
     .dbg_state(qmc_dbg_state[0]),
     .dbg_err(qmc_dbg_err[0]),
@@ -232,10 +224,6 @@ qmc5883l_ctrl u_qmc_2 (
     .mag_x(mag2_x),
     .mag_y(mag2_y),
     .mag_z(mag2_z),
-    .mag_x_gauss_q16(mag2_x_gauss_q16),
-    .mag_y_gauss_q16(mag2_y_gauss_q16),
-    .mag_z_gauss_q16(mag2_z_gauss_q16),
-    .range_gauss_q16(),
 
     .dbg_state(qmc_dbg_state[1]),
     .dbg_err(qmc_dbg_err[1]),
@@ -256,10 +244,6 @@ qmc5883l_ctrl u_qmc_3 (
     .mag_x(mag3_x),
     .mag_y(mag3_y),
     .mag_z(mag3_z),
-    .mag_x_gauss_q16(mag3_x_gauss_q16),
-    .mag_y_gauss_q16(mag3_y_gauss_q16),
-    .mag_z_gauss_q16(mag3_z_gauss_q16),
-    .range_gauss_q16(),
 
     .dbg_state(qmc_dbg_state[2]),
     .dbg_err(qmc_dbg_err[2]),
@@ -280,10 +264,6 @@ qmc5883l_ctrl u_qmc_4 (
     .mag_x(mag4_x),
     .mag_y(mag4_y),
     .mag_z(mag4_z),
-    .mag_x_gauss_q16(mag4_x_gauss_q16),
-    .mag_y_gauss_q16(mag4_y_gauss_q16),
-    .mag_z_gauss_q16(mag4_z_gauss_q16),
-    .range_gauss_q16(),
 
     .dbg_state(qmc_dbg_state[3]),
     .dbg_err(qmc_dbg_err[3]),
@@ -295,17 +275,27 @@ qmc5883l_ctrl u_qmc_4 (
 );
 
 // =====================================================================
-// QMC5883P bring-up interface
+// Debug LED mapping for QMC5883P bring-up
 // =====================================================================
-// SW[3:2]   = selected sensor: 00, 01, 10, 11 select sensors 1, 2, 3, 4.
-// SW[1:0]   = selected axis: 00, 01, 10 select X, Y, Z.
-// LEDG[0]   = all four sensors initialized successfully.
-// LEDR[17:0] = absolute selected-axis field strength relative to configured range.
+// SW[3:2]     = selected sensor: 00, 01, 10, 11 select sensors 1, 2, 3, 4.
+// LEDR[7:0]   = selected sensor chip ID. Expected QMC5883P chip ID is 8'h80.
+// LEDR[8]     = chip ID has been read at least once.
+// LEDR[9]     = chip ID equals 8'h80.
+// LEDR[14:10] = controller FSM state[4:0].
+// LEDR[15]    = initialization completed: CONTROL1 and CONTROL2 were written.
+// LEDR[16]    = live ACK error pulse from I2C master.
+// LEDR[17]    = latched ACK error; stays ON after any ACK error until successful chip ID.
+// LEDG[3:0]   = initialization completed for sensors 1 through 4.
+// LEDG[7:4]   = latched ACK error for sensors 1 through 4.
+// LEDG[8]     = all four sensors initialized successfully.
 logic [15:0] selected_mag_x, selected_mag_y, selected_mag_z;
-logic signed [31:0] selected_mag_x_gauss_q16;
-logic signed [31:0] selected_mag_y_gauss_q16;
-logic signed [31:0] selected_mag_z_gauss_q16;
+logic [4:0]  selected_dbg_state;
+logic        selected_dbg_err;
 logic [7:0]  selected_dbg_chip_id;
+logic        selected_dbg_chip_id_valid;
+logic        selected_dbg_chip_id_ok;
+logic        selected_dbg_init_done;
+logic        selected_dbg_ack_error_latched;
 
 always_comb begin
     case (SW[3:2])
@@ -313,104 +303,83 @@ always_comb begin
             selected_mag_x                 = mag1_x;
             selected_mag_y                 = mag1_y;
             selected_mag_z                 = mag1_z;
-            selected_mag_x_gauss_q16       = mag1_x_gauss_q16;
-            selected_mag_y_gauss_q16       = mag1_y_gauss_q16;
-            selected_mag_z_gauss_q16       = mag1_z_gauss_q16;
+            selected_dbg_state             = qmc_dbg_state[0];
+            selected_dbg_err               = qmc_dbg_err[0];
             selected_dbg_chip_id           = qmc_dbg_chip_id[0];
+            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[0];
+            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[0];
+            selected_dbg_init_done         = qmc_dbg_init_done[0];
+            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[0];
         end
         2'b01: begin
             selected_mag_x                 = mag2_x;
             selected_mag_y                 = mag2_y;
             selected_mag_z                 = mag2_z;
-            selected_mag_x_gauss_q16       = mag2_x_gauss_q16;
-            selected_mag_y_gauss_q16       = mag2_y_gauss_q16;
-            selected_mag_z_gauss_q16       = mag2_z_gauss_q16;
+            selected_dbg_state             = qmc_dbg_state[1];
+            selected_dbg_err               = qmc_dbg_err[1];
             selected_dbg_chip_id           = qmc_dbg_chip_id[1];
+            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[1];
+            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[1];
+            selected_dbg_init_done         = qmc_dbg_init_done[1];
+            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[1];
         end
         2'b10: begin
             selected_mag_x                 = mag3_x;
             selected_mag_y                 = mag3_y;
             selected_mag_z                 = mag3_z;
-            selected_mag_x_gauss_q16       = mag3_x_gauss_q16;
-            selected_mag_y_gauss_q16       = mag3_y_gauss_q16;
-            selected_mag_z_gauss_q16       = mag3_z_gauss_q16;
+            selected_dbg_state             = qmc_dbg_state[2];
+            selected_dbg_err               = qmc_dbg_err[2];
             selected_dbg_chip_id           = qmc_dbg_chip_id[2];
+            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[2];
+            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[2];
+            selected_dbg_init_done         = qmc_dbg_init_done[2];
+            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[2];
         end
         default: begin
             selected_mag_x                 = mag4_x;
             selected_mag_y                 = mag4_y;
             selected_mag_z                 = mag4_z;
-            selected_mag_x_gauss_q16       = mag4_x_gauss_q16;
-            selected_mag_y_gauss_q16       = mag4_y_gauss_q16;
-            selected_mag_z_gauss_q16       = mag4_z_gauss_q16;
+            selected_dbg_state             = qmc_dbg_state[3];
+            selected_dbg_err               = qmc_dbg_err[3];
             selected_dbg_chip_id           = qmc_dbg_chip_id[3];
+            selected_dbg_chip_id_valid     = qmc_dbg_chip_id_valid[3];
+            selected_dbg_chip_id_ok        = qmc_dbg_chip_id_ok[3];
+            selected_dbg_init_done         = qmc_dbg_init_done[3];
+            selected_dbg_ack_error_latched = qmc_dbg_ack_error_latched[3];
         end
     endcase
 end
 
-assign LEDG[0]   = &qmc_dbg_init_done;
-assign LEDG[8:1] = 8'd0;
+assign LEDR[7:0]   = selected_dbg_chip_id;
+assign LEDR[8]     = selected_dbg_chip_id_valid;
+assign LEDR[9]     = selected_dbg_chip_id_ok;
+assign LEDR[14:10] = selected_dbg_state;
+assign LEDR[15]    = selected_dbg_init_done;
+assign LEDR[16]    = selected_dbg_err;
+assign LEDR[17]    = selected_dbg_ack_error_latched;
+assign LEDG[3:0]   = qmc_dbg_init_done;
+assign LEDG[7:4]   = qmc_dbg_ack_error_latched;
+assign LEDG[8]     = &qmc_dbg_init_done;
 
 // =====================================================================
 // 觀察與驗證機制：SW[3:2] 選擇感測器，SW[1:0] 選擇 X, Y, Z 軸
 // =====================================================================
 logic [15:0] display_mag_data;
-logic signed [31:0] display_mag_gauss_q16;
 
 always_comb begin
     case (SW[1:0])
-        2'b00: begin
-            display_mag_data      = selected_mag_x;
-            display_mag_gauss_q16 = selected_mag_x_gauss_q16;
-        end
-        2'b01: begin
-            display_mag_data      = selected_mag_y;
-            display_mag_gauss_q16 = selected_mag_y_gauss_q16;
-        end
-        2'b10: begin
-            display_mag_data      = selected_mag_z;
-            display_mag_gauss_q16 = selected_mag_z_gauss_q16;
-        end
-        default: begin
-            display_mag_data      = selected_mag_x;
-            display_mag_gauss_q16 = selected_mag_x_gauss_q16;
-        end
+        2'b00:   display_mag_data = selected_mag_x;
+        2'b01:   display_mag_data = selected_mag_y;
+        2'b10:   display_mag_data = selected_mag_z;
+        default: display_mag_data = selected_mag_x;
     endcase
 end
-
-function automatic [17:0] raw_to_led_bar;
-    input signed [15:0] raw_field;
-    reg [15:0] field_magnitude;
-    reg [20:0] scaled_strength;
-    reg [4:0]  led_count;
-    begin
-        if (raw_field == 16'sh8000)
-            field_magnitude = 16'd32768;
-        else if (raw_field < 0)
-            field_magnitude = -raw_field;
-        else
-            field_magnitude = raw_field;
-
-        if (field_magnitude == 0) begin
-            raw_to_led_bar = 18'd0;
-        end else if (field_magnitude >= 16'd32768) begin
-            raw_to_led_bar = 18'h3FFFF;
-        end else begin
-            scaled_strength = field_magnitude * 5'd18 + 15'd32767;
-            led_count = scaled_strength >> 15;
-            raw_to_led_bar = (18'h1 << led_count) - 1'b1;
-        end
-    end
-endfunction
-
-assign LEDR = raw_to_led_bar($signed(display_mag_data));
 
 // 將選中的 16-bit 原始資料以 16 進位輸出至 HEX0 ~ HEX3 七段顯示器
 HexTo7Seg hex_dec_0 (.i_hex(display_mag_data[3:0]),   .o_seg(HEX0));
 HexTo7Seg hex_dec_1 (.i_hex(display_mag_data[7:4]),   .o_seg(HEX1));
 HexTo7Seg hex_dec_2 (.i_hex(display_mag_data[11:8]),  .o_seg(HEX2));
 HexTo7Seg hex_dec_3 (.i_hex(display_mag_data[15:12]), .o_seg(HEX3));
-HexTo7Seg hex_sensor_number (.i_hex({2'b00, SW[3:2]} + 4'd1), .o_seg(HEX7));
 
 
 
