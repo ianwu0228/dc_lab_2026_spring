@@ -245,7 +245,10 @@ module qmc5883l_ctrl (
         S_RD_ZMSB_LAT     = 6'd32,
         S_ASSEMBLE        = 6'd33,
 
-        S_ERROR_RETRY     = 6'd34;
+        // Recover from a NACK by releasing the bus before retrying.
+        S_ERROR_STOP_GO   = 6'd34,
+        S_ERROR_STOP_WAIT = 6'd35,
+        S_ERROR_RETRY     = 6'd36;
 
     reg [5:0] state;
 
@@ -284,11 +287,12 @@ module qmc5883l_ctrl (
             // Default: do not start a new I2C command unless a state below requests it.
             i2c_go <= 1'b0;
 
-            // If any write/address byte gets NACKed, retry from chip-ID read.
+            // If any write/address byte gets NACKed, release the bus before retrying.
             if (i2c_done && i2c_ack_err) begin
                 dbg_ack_error_latched <= 1'b1;
                 init_done <= 1'b0;
-                state <= S_ERROR_RETRY;
+                delay_cnt <= 20'd0;
+                state <= S_ERROR_STOP_GO;
             end else begin
                 case (state)
                     // ---------------------------------------------------------
@@ -359,6 +363,7 @@ module qmc5883l_ctrl (
                                 dbg_ack_error_latched <= 1'b0;
                                 state <= S_INIT1_START;
                             end else begin
+                                delay_cnt <= 20'd0;
                                 state <= S_ERROR_RETRY;
                             end
                         end
@@ -587,6 +592,18 @@ module qmc5883l_ctrl (
                             mag_y <= {buf_yh, buf_yl};
                             mag_z <= {buf_zh, buf_zl};
                             state <= S_RD_START;
+                        end
+                    end
+
+                    S_ERROR_STOP_GO: begin
+                        i2c_cmd <= CMD_STOP;
+                        i2c_go  <= 1'b1;
+                        state   <= S_ERROR_STOP_WAIT;
+                    end
+
+                    S_ERROR_STOP_WAIT: begin
+                        if (i2c_done) begin
+                            state <= S_ERROR_RETRY;
                         end
                     end
 
