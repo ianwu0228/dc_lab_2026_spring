@@ -606,4 +606,60 @@ lcd_1602_controller u_lcd (
     .lcd_en   (LCD_EN)
 );
 
+// =====================================================================
+// VGA sensor-1 dashboard: 640x480 @ 60 Hz, white text on black background
+// =====================================================================
+wire               vga_pixel_clk;
+wire               vga_frame_start;
+wire [9:0]         vga_pixel_x;
+wire [9:0]         vga_pixel_y;
+wire               vga_active_video;
+wire               vga_hsync_n;
+wire               vga_vsync_n;
+wire               vga_text_pixel_on;
+wire signed [15:0] vga_sensor1_x =
+    use_calibrated_display ? cal_mag1_x : $signed(mag1_x);
+wire signed [15:0] vga_sensor1_y =
+    use_calibrated_display ? cal_mag1_y : $signed(mag1_y);
+wire signed [15:0] vga_sensor1_z =
+    use_calibrated_display ? cal_mag1_z : $signed(mag1_z);
+
+vga_timing_640x480 u_vga_timing (
+    .clk_50       (CLOCK_50),
+    .rst_n        (key3down),
+    .pixel_clk    (vga_pixel_clk),
+    .frame_start  (vga_frame_start),
+    .pixel_x      (vga_pixel_x),
+    .pixel_y      (vga_pixel_y),
+    .active_video (vga_active_video),
+    .hsync_n      (vga_hsync_n),
+    .vsync_n      (vga_vsync_n)
+);
+
+vga_sensor1_dashboard u_vga_dashboard (
+    .clk                     (CLOCK_50),
+    .rst_n                   (key3down),
+    .frame_start             (vga_frame_start),
+    .active_video            (vga_active_video),
+    .pixel_x                 (vga_pixel_x),
+    .pixel_y                 (vga_pixel_y),
+    .sensor_x                (vga_sensor1_x),
+    .sensor_y                (vga_sensor1_y),
+    .sensor_z                (vga_sensor1_z),
+    .calibrated_mode         (use_calibrated_display),
+    .calibration_collecting  (calibration_collecting),
+    .calibration_calculating (calibration_calculating),
+    .calibration_done        (calibration_done),
+    .pixel_on                (vga_text_pixel_on)
+);
+
+assign VGA_CLK     = vga_pixel_clk;
+assign VGA_HS      = vga_hsync_n;
+assign VGA_VS      = vga_vsync_n;
+assign VGA_BLANK_N = vga_active_video;
+assign VGA_SYNC_N  = 1'b0;
+assign VGA_R       = vga_text_pixel_on ? 8'hFF : 8'h00;
+assign VGA_G       = vga_text_pixel_on ? 8'hFF : 8'h00;
+assign VGA_B       = vga_text_pixel_on ? 8'hFF : 8'h00;
+
 endmodule
