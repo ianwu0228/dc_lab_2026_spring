@@ -427,7 +427,6 @@ mag_calibrator u_calibrator_4 (
 // LEDR[17:0] = absolute selected-axis field strength relative to configured range.
 logic signed [15:0] selected_mag_x, selected_mag_y, selected_mag_z;
 logic signed [15:0] selected_cal_mag_x, selected_cal_mag_y, selected_cal_mag_z;
-logic [7:0]  selected_dbg_chip_id;
 
 always_comb begin
     case (SW[3:2])
@@ -438,7 +437,6 @@ always_comb begin
             selected_cal_mag_x             = cal_mag1_x;
             selected_cal_mag_y             = cal_mag1_y;
             selected_cal_mag_z             = cal_mag1_z;
-            selected_dbg_chip_id           = qmc_dbg_chip_id[0];
         end
         2'b01: begin
             selected_mag_x                 = mag2_x;
@@ -447,7 +445,6 @@ always_comb begin
             selected_cal_mag_x             = cal_mag2_x;
             selected_cal_mag_y             = cal_mag2_y;
             selected_cal_mag_z             = cal_mag2_z;
-            selected_dbg_chip_id           = qmc_dbg_chip_id[1];
         end
         2'b10: begin
             selected_mag_x                 = mag3_x;
@@ -456,7 +453,6 @@ always_comb begin
             selected_cal_mag_x             = cal_mag3_x;
             selected_cal_mag_y             = cal_mag3_y;
             selected_cal_mag_z             = cal_mag3_z;
-            selected_dbg_chip_id           = qmc_dbg_chip_id[2];
         end
         default: begin
             selected_mag_x                 = mag4_x;
@@ -465,7 +461,6 @@ always_comb begin
             selected_cal_mag_x             = cal_mag4_x;
             selected_cal_mag_y             = cal_mag4_y;
             selected_cal_mag_z             = cal_mag4_z;
-            selected_dbg_chip_id           = qmc_dbg_chip_id[3];
         end
     endcase
 end
@@ -559,33 +554,43 @@ function automatic [31:0] word_to_hex_ascii;
     end
 endfunction
 
+// Convert signed 16-bit value to a sign and four hexadecimal magnitude digits.
+function automatic [39:0] signed_word_to_hex_ascii;
+    input signed [15:0] value;
+    reg [15:0] magnitude;
+    begin
+        if (value < 0) begin
+            magnitude = (~value) + 1'b1;
+            signed_word_to_hex_ascii = {"-", word_to_hex_ascii(magnitude)};
+        end else begin
+            magnitude = value;
+            signed_word_to_hex_ascii = {"+", word_to_hex_ascii(magnitude)};
+        end
+    end
+endfunction
+
 wire [127:0] lcd_line1;
 wire [127:0] lcd_line2;
-wire [31:0]  chip_id_ascii;
 wire [15:0]  lcd_mag_x = use_calibrated_display ? selected_cal_mag_x : selected_mag_x;
 wire [15:0]  lcd_mag_y = use_calibrated_display ? selected_cal_mag_y : selected_mag_y;
 wire [15:0]  lcd_mag_z = use_calibrated_display ? selected_cal_mag_z : selected_mag_z;
 
-assign chip_id_ascii = word_to_hex_ascii({8'h00, selected_dbg_chip_id});
-
 // Exactly 16 characters:
-// "X=1234 Y=5678   "
+// "X=+1234 Y=-5678 "
 assign lcd_line1 = {
     "X=",
-    word_to_hex_ascii(lcd_mag_x),
+    signed_word_to_hex_ascii(lcd_mag_x),
     " Y=",
-    word_to_hex_ascii(lcd_mag_y),
-    "   "
+    signed_word_to_hex_ascii(lcd_mag_y),
+    " "
 };
 
 // Exactly 16 characters:
-// "Z=1234 ID=80  "
+// "Z=+1234         "
 assign lcd_line2 = {
     "Z=",
-    word_to_hex_ascii(lcd_mag_z),
-    " ID=",
-    chip_id_ascii[15:0],
-    "  "
+    signed_word_to_hex_ascii(lcd_mag_z),
+    "         "
 };
 
 lcd_1602_controller u_lcd (
