@@ -40,15 +40,33 @@ module vga_four_sensor_dashboard (
 );
 
     localparam [9:0] CENTER_X = 10'd320;
-    localparam [9:0] CENTER_Y = 10'd320;
-    localparam [9:0] S1_X = 10'd260;
+    localparam [9:0] FLOOR_Y = 10'd340;
+
+    localparam [9:0] CUBE_F1_X = 10'd200;
+    localparam [9:0] CUBE_F1_Y = 10'd420;
+    localparam [9:0] CUBE_F2_X = 10'd440;
+    localparam [9:0] CUBE_F2_Y = 10'd420;
+    localparam [9:0] CUBE_F3_X = 10'd440;
+    localparam [9:0] CUBE_F3_Y = 10'd180;
+    localparam [9:0] CUBE_F4_X = 10'd200;
+    localparam [9:0] CUBE_F4_Y = 10'd180;
+    localparam [9:0] CUBE_B1_X = 10'd300;
+    localparam [9:0] CUBE_B1_Y = 10'd340;
+    localparam [9:0] CUBE_B2_X = 10'd540;
+    localparam [9:0] CUBE_B2_Y = 10'd340;
+    localparam [9:0] CUBE_B3_X = 10'd540;
+    localparam [9:0] CUBE_B3_Y = 10'd100;
+    localparam [9:0] CUBE_B4_X = 10'd300;
+    localparam [9:0] CUBE_B4_Y = 10'd100;
+
+    localparam [9:0] S1_X = 10'd280;
     localparam [9:0] S1_Y = 10'd380;
-    localparam [9:0] S2_X = 10'd380;
+    localparam [9:0] S2_X = 10'd360;
     localparam [9:0] S2_Y = 10'd380;
-    localparam [9:0] S3_X = 10'd260;
-    localparam [9:0] S3_Y = 10'd260;
-    localparam [9:0] S4_X = 10'd380;
-    localparam [9:0] S4_Y = 10'd260;
+    localparam [9:0] S3_X = 10'd280;
+    localparam [9:0] S3_Y = 10'd300;
+    localparam [9:0] S4_X = 10'd360;
+    localparam [9:0] S4_Y = 10'd300;
 
     reg signed [15:0] snapshot_source_x_q10;
     reg signed [15:0] snapshot_source_y_q10;
@@ -74,10 +92,6 @@ module vga_four_sensor_dashboard (
         project_x(snapshot_source_x_q10);
     wire [9:0] source_screen_y =
         project_y(snapshot_source_y_q10, snapshot_source_z_q10);
-    wire [9:0] shadow_screen_x =
-        project_x(snapshot_source_x_q10);
-    wire [9:0] shadow_screen_y =
-        project_y(snapshot_source_y_q10, 16'sd0);
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -106,7 +120,7 @@ module vga_four_sensor_dashboard (
         reg signed [26:0] x_value;
         begin
             x_value = $signed({1'b0, CENTER_X}) +
-                      ((x_q10 * 8'sd120) >>> 10);
+                      ((x_q10 * 8'sd80) >>> 10);
             if (x_value < 0)
                 project_x = 10'd0;
             else if (x_value > 27'sd639)
@@ -121,9 +135,9 @@ module vga_four_sensor_dashboard (
         input signed [15:0] z_q10;
         reg signed [26:0] y_value;
         begin
-            y_value = $signed({1'b0, CENTER_Y}) -
-                      ((y_q10 * 8'sd120) >>> 10) -
-                      ((z_q10 * 8'sd80) >>> 10);
+            y_value = $signed({1'b0, FLOOR_Y}) -
+                      ((y_q10 * 8'sd80) >>> 10) -
+                      ((z_q10 * 8'sd60) >>> 10);
             if (y_value < 0)
                 project_y = 10'd0;
             else if (y_value > 27'sd479)
@@ -253,7 +267,7 @@ module vga_four_sensor_dashboard (
         line_text = {40{" "}};
 
         case (text_row)
-            5'd1: line_text = {"MAGNET SOURCE POSITION", {18{" "}}};
+            5'd1: line_text = {"3D MAGNET POSITION", {22{" "}}};
             5'd3: line_text = {
                 "MODE ",
                 snapshot_calibrated_mode ? "CAL " : "RAW ",
@@ -267,9 +281,9 @@ module vga_four_sensor_dashboard (
                 " Z=", q10_to_ascii(snapshot_source_z_q10),
                 {14{" "}}
             };
-            5'd7: line_text = {"24MM SQUARE SENSOR PLANE", {16{" "}}};
+            5'd7: line_text = {"UNIT 1.000 = 24MM", {23{" "}}};
             5'd8: line_text = {"KEY2 BG NO MAGNET", {23{" "}}};
-            5'd28: line_text = {"BLUE SENSOR  RED SOURCE  YELLOW SHADOW", {2{" "}}};
+            5'd28: line_text = {"GREEN MAGNET  BLUE SENSORS", {14{" "}}};
             default: line_text = {40{" "}};
         endcase
 
@@ -297,6 +311,7 @@ module vga_four_sensor_dashboard (
             "G": font_bitmap = 64'h3C66606E66663C00;
             "H": font_bitmap = 64'h6666667E66666600;
             "I": font_bitmap = 64'h3C18181818183C00;
+            "K": font_bitmap = 64'h666C7870786C6600;
             "L": font_bitmap = 64'h6060606060607E00;
             "M": font_bitmap = 64'h63777F6B63636300;
             "N": font_bitmap = 64'h66767E7E6E666600;
@@ -335,35 +350,44 @@ module vga_four_sensor_dashboard (
         endcase
     end
 
-    wire square_s1_s2 = line_near(S1_X, S1_Y, S2_X, S2_Y);
-    wire square_s1_s3 = line_near(S1_X, S1_Y, S3_X, S3_Y);
-    wire square_s2_s4 = line_near(S2_X, S2_Y, S4_X, S4_Y);
-    wire square_s3_s4 = line_near(S3_X, S3_Y, S4_X, S4_Y);
-    wire source_height_line = snapshot_source_valid &&
-                              line_near(source_screen_x,
-                                        source_screen_y,
-                                        shadow_screen_x,
-                                        shadow_screen_y);
+    wire cube_f12 = line_near(CUBE_F1_X, CUBE_F1_Y, CUBE_F2_X, CUBE_F2_Y);
+    wire cube_f23 = line_near(CUBE_F2_X, CUBE_F2_Y, CUBE_F3_X, CUBE_F3_Y);
+    wire cube_f34 = line_near(CUBE_F3_X, CUBE_F3_Y, CUBE_F4_X, CUBE_F4_Y);
+    wire cube_f41 = line_near(CUBE_F4_X, CUBE_F4_Y, CUBE_F1_X, CUBE_F1_Y);
+    wire cube_b12 = line_near(CUBE_B1_X, CUBE_B1_Y, CUBE_B2_X, CUBE_B2_Y);
+    wire cube_b23 = line_near(CUBE_B2_X, CUBE_B2_Y, CUBE_B3_X, CUBE_B3_Y);
+    wire cube_b34 = line_near(CUBE_B3_X, CUBE_B3_Y, CUBE_B4_X, CUBE_B4_Y);
+    wire cube_b41 = line_near(CUBE_B4_X, CUBE_B4_Y, CUBE_B1_X, CUBE_B1_Y);
+    wire cube_c1 = line_near(CUBE_F1_X, CUBE_F1_Y, CUBE_B1_X, CUBE_B1_Y);
+    wire cube_c2 = line_near(CUBE_F2_X, CUBE_F2_Y, CUBE_B2_X, CUBE_B2_Y);
+    wire cube_c3 = line_near(CUBE_F3_X, CUBE_F3_Y, CUBE_B3_X, CUBE_B3_Y);
+    wire cube_c4 = line_near(CUBE_F4_X, CUBE_F4_Y, CUBE_B4_X, CUBE_B4_Y);
+    wire sensor_square_s1_s2 = line_near(S1_X, S1_Y, S2_X, S2_Y);
+    wire sensor_square_s1_s3 = line_near(S1_X, S1_Y, S3_X, S3_Y);
+    wire sensor_square_s2_s4 = line_near(S2_X, S2_Y, S4_X, S4_Y);
+    wire sensor_square_s3_s4 = line_near(S3_X, S3_Y, S4_X, S4_Y);
 
     assign text_pixel_on = active_video &&
                            font_pixels[3'd7 - glyph_column];
     assign graph_axis_pixel_on = active_video &&
-                                 (square_s1_s2 || square_s1_s3 ||
-                                  square_s2_s4 || square_s3_s4 ||
-                                  source_height_line);
-    assign graph_plot_s1_pixel_on = 1'b0;
-    assign graph_plot_s2_pixel_on = active_video && snapshot_source_valid &&
+                                 (cube_f12 || cube_f23 || cube_f34 ||
+                                  cube_f41 || cube_b12 || cube_b23 ||
+                                  cube_b34 || cube_b41 || cube_c1 ||
+                                  cube_c2 || cube_c3 || cube_c4 ||
+                                  sensor_square_s1_s2 ||
+                                  sensor_square_s1_s3 ||
+                                  sensor_square_s2_s4 ||
+                                  sensor_square_s3_s4);
+    assign graph_plot_s1_pixel_on = active_video && snapshot_source_valid &&
                                     point_near(source_screen_x,
                                                source_screen_y,
-                                               4'd4);
+                                               4'd5);
+    assign graph_plot_s2_pixel_on = 1'b0;
     assign graph_plot_s3_pixel_on = active_video &&
                                     (point_near(S1_X, S1_Y, 4'd4) ||
                                      point_near(S2_X, S2_Y, 4'd4) ||
                                      point_near(S3_X, S3_Y, 4'd4) ||
                                      point_near(S4_X, S4_Y, 4'd4));
-    assign graph_plot_s4_pixel_on = active_video && snapshot_source_valid &&
-                                    point_near(shadow_screen_x,
-                                               shadow_screen_y,
-                                               4'd2);
+    assign graph_plot_s4_pixel_on = 1'b0;
 
 endmodule
