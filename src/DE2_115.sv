@@ -138,9 +138,11 @@ module DE2_115 (
 
 logic key0down;
 logic key1down;
+logic key2down;
 logic key3down;
 logic key0down_d;
 logic key1down_d;
+logic key2down_d;
 
 Debounce deb0(
     .i_in(KEY[0]),
@@ -156,6 +158,13 @@ Debounce deb1(
     .o_debounced(key1down)
 );
 
+Debounce deb2(
+    .i_in(KEY[2]),
+    .i_rst_n(1'b1),
+    .i_clk(CLOCK_50),
+    .o_debounced(key2down)
+);
+
 Debounce deb3(
     .i_in(KEY[3]),
     .i_rst_n(1'b1),
@@ -167,14 +176,17 @@ always @(posedge CLOCK_50 or negedge key3down) begin
     if (!key3down) begin
         key0down_d <= 1'b1;
         key1down_d <= 1'b1;
+        key2down_d <= 1'b1;
     end else begin
         key0down_d <= key0down;
         key1down_d <= key1down;
+        key2down_d <= key2down;
     end
 end
 
 wire calibration_start_pulse  = key0down_d && !key0down;
 wire calibration_finish_pulse = key1down_d && !key1down;
+wire dc_baseline_capture_pulse = key2down_d && !key2down;
 
 assign HEX4 = '1;
 assign HEX5 = '1;
@@ -418,6 +430,7 @@ mag_calibrator u_calibrator_4 (
 // =====================================================================
 // KEY[0]     = restart calibration collection.
 // KEY[1]     = finish collection and calculate coefficients.
+// KEY[2]     = capture DC magnetic background for VGA permanent-magnet tracking.
 // SW[4]      = display calibrated values after calculation is complete.
 // SW[3:2]    = selected sensor: 00, 01, 10, 11 select sensors 1, 2, 3, 4.
 // SW[1:0]    = selected axis: 00, 01, 10 select X, Y, Z.
@@ -469,7 +482,8 @@ assign LEDG[0]   = ((qmc_dbg_init_done & ACTIVE_SENSOR_MASK) ==
 assign LEDG[1]   = calibration_collecting;
 assign LEDG[2]   = calibration_calculating;
 assign LEDG[3]   = calibration_done;
-assign LEDG[8:4] = 5'd0;
+assign LEDG[4]   = dc_baseline_capture_pulse;
+assign LEDG[8:5] = 4'd0;
 
 // =====================================================================
 // 觀察與驗證機制：SW[3:2] 選擇感測器，SW[1:0] 選擇 X, Y, Z 軸
@@ -734,6 +748,19 @@ mag_source_tracker u_mag_source_tracker (
     .clk                     (CLOCK_50),
     .rst_n                   (key3down),
     .update                  (vga_frame_start),
+    .baseline_capture        (dc_baseline_capture_pulse),
+    .sensor1_x               (vga_sensor1_x),
+    .sensor1_y               (vga_sensor1_y),
+    .sensor1_z               (vga_sensor1_z),
+    .sensor2_x               (vga_sensor2_x),
+    .sensor2_y               (vga_sensor2_y),
+    .sensor2_z               (vga_sensor2_z),
+    .sensor3_x               (vga_sensor3_x),
+    .sensor3_y               (vga_sensor3_y),
+    .sensor3_z               (vga_sensor3_z),
+    .sensor4_x               (vga_sensor4_x),
+    .sensor4_y               (vga_sensor4_y),
+    .sensor4_z               (vga_sensor4_z),
     .sensor1_h2_gauss_q16    (vga_sensor1_magnitude_squared_gauss_q16),
     .sensor2_h2_gauss_q16    (vga_sensor2_magnitude_squared_gauss_q16),
     .sensor3_h2_gauss_q16    (vga_sensor3_magnitude_squared_gauss_q16),

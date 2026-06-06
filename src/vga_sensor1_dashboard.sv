@@ -268,7 +268,7 @@ module vga_four_sensor_dashboard (
                 {14{" "}}
             };
             5'd7: line_text = {"24MM SQUARE SENSOR PLANE", {16{" "}}};
-            5'd8: line_text = {"UNIT 1.000 = 24MM", {23{" "}}};
+            5'd8: line_text = {"KEY2 BG NO MAGNET", {23{" "}}};
             5'd28: line_text = {"BLUE SENSOR  RED SOURCE  YELLOW SHADOW", {2{" "}}};
             default: line_text = {40{" "}};
         endcase
