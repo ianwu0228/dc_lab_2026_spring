@@ -2,6 +2,7 @@
 import argparse
 from collections import deque
 import csv
+import math
 import re
 import sys
 import time
@@ -41,7 +42,7 @@ def parse_line(line: str):
 
 
 class LivePlot:
-    def __init__(self, window_seconds: float, absolute: bool):
+    def __init__(self, window_seconds: float, absolute: bool, normalize: bool):
         try:
             import matplotlib.pyplot as plt
         except ImportError:
@@ -54,6 +55,7 @@ class LivePlot:
         self.plt = plt
         self.window_seconds = window_seconds
         self.absolute = absolute
+        self.normalize = normalize
         self.start_time = time.time()
         self.history = {
             sensor: {
@@ -72,11 +74,15 @@ class LivePlot:
             self.lines[sensor] = self.axis.plot([], [], label=f"S{sensor}")[0]
 
         title = "Magnetic Field Magnitude Squared"
-        if not self.absolute:
+        if self.normalize:
+            title = "Magnetic Field Magnitude Squared Change Ratio"
+        elif not self.absolute:
             title = "Magnetic Field Magnitude Squared Change"
         self.axis.set_title(title)
         self.axis.set_xlabel("Time (s)")
-        if self.absolute:
+        if self.normalize:
+            self.axis.set_ylabel("Delta from baseline / baseline")
+        elif self.absolute:
             self.axis.set_ylabel("X^2 + Y^2 + Z^2 (counts^2)")
         else:
             self.axis.set_ylabel("Delta from baseline (counts^2)")
@@ -91,7 +97,15 @@ class LivePlot:
         mag2 = parsed["x"] ** 2 + parsed["y"] ** 2 + parsed["z"] ** 2
         if self.baseline[sensor] is None:
             self.baseline[sensor] = mag2
-        plot_value = mag2 if self.absolute else mag2 - self.baseline[sensor]
+
+        if self.normalize:
+            baseline = max(self.baseline[sensor], 1)
+            plot_value = (mag2 - baseline) / baseline
+        elif self.absolute:
+            plot_value = mag2
+        else:
+            plot_value = mag2 - self.baseline[sensor]
+
         values = self.history[sensor]
         values["t"].append(now)
         values["mag2"].append(plot_value)
@@ -105,20 +119,41 @@ class LivePlot:
         now = time.time() - self.start_time
         x_min = max(0.0, now - self.window_seconds)
         x_max = max(self.window_seconds, now)
+        visible_values = []
 
         for sensor in range(1, 5):
             values = self.history[sensor]
-            self.lines[sensor].set_data(list(values["t"]), list(values["mag2"]))
+            times = list(values["t"])
+            mag2_values = list(values["mag2"])
+            self.lines[sensor].set_data(times, mag2_values)
+            visible_values.extend(mag2_values)
 
         self.axis.set_xlim(x_min, x_max)
-        self.axis.relim()
-        self.axis.autoscale_view(scalex=False, scaley=True)
-        if not self.absolute:
-            ymin, ymax = self.axis.get_ylim()
+
+        if visible_values:
+            ymin = min(visible_values)
+            ymax = max(visible_values)
+            if not math.isfinite(ymin) or not math.isfinite(ymax):
+                ymin, ymax = -1.0, 1.0
+
             span = ymax - ymin
-            if span < 1000:
+            if self.normalize:
+                min_span = 0.05
+            elif self.absolute:
+                min_span = 1000.0
+            else:
+                min_span = 1000.0
+
+            if span < min_span:
                 center = (ymin + ymax) / 2
-                self.axis.set_ylim(center - 500, center + 500)
+                ymin = center - min_span / 2
+                ymax = center + min_span / 2
+            else:
+                padding = span * 0.1
+                ymin -= padding
+                ymax += padding
+
+            self.axis.set_ylim(ymin, ymax)
 
         self.figure.canvas.draw_idle()
         self.plt.pause(0.001)
@@ -132,7 +167,7 @@ def main() -> int:
         "port",
         help="Serial port, e.g. COM3 on Windows or /dev/ttyUSB0 on Linux.",
     )
-    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--baud", "-baud", type=int, default=115200)
     parser.add_argument("--csv", help="Optional CSV output file.")
     parser.add_argument(
         "--print-raw",
@@ -162,6 +197,11 @@ def main() -> int:
         help="Plot absolute X^2+Y^2+Z^2 instead of baseline-subtracted change.",
     )
     parser.add_argument(
+        "--plot-counts2",
+        action="store_true",
+        help="Plot delta counts^2 instead of normalized baseline-relative change.",
+    )
+    parser.add_argument(
         "--quiet",
         action="store_true",
         help="Do not print parsed samples to the terminal.",
@@ -178,9 +218,19 @@ def main() -> int:
             )
         writer.writeheader()
 
-    live_plot = LivePlot(args.plot_window, args.plot_absolute) if args.plot else None
+    live_plot = (
+        LivePlot(
+            args.plot_window,
+            args.plot_absolute,
+            normalize=not args.plot_absolute and not args.plot_counts2,
+        )
+        if args.plot
+        else None
+    )
     last_plot_update = 0.0
     last_csv_flush = time.time()
+    last_status_print = time.time()
+    parsed_count = 0
     plot_update_period = 1.0 / args.plot_update_hz if args.plot_update_hz > 0 else 0.0
 
     try:
@@ -228,11 +278,15 @@ def main() -> int:
                         last_csv_flush = now
 
                 if live_plot and parsed is not None:
+                    parsed_count += 1
                     live_plot.add_sample(parsed)
                     now = time.time()
                     if now - last_plot_update >= plot_update_period:
                         live_plot.update()
                         last_plot_update = now
+                    if now - last_status_print >= 2.0:
+                        print(f"plotting: parsed {parsed_count} samples")
+                        last_status_print = now
 
     except KeyboardInterrupt:
         print("\nStopped.")

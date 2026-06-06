@@ -654,7 +654,7 @@ mag_uart_streamer u_mag_uart_streamer (
 assign UART_CTS = 1'b0;
 
 // =====================================================================
-// VGA sensor-1 dashboard: 640x480 @ 60 Hz, white text on black background
+// VGA dashboard: 640x480 @ 60 Hz, four sensor Gauss values and H2 traces
 // =====================================================================
 wire               vga_pixel_clk;
 wire               vga_frame_start;
@@ -665,20 +665,83 @@ wire               vga_hsync_n;
 wire               vga_vsync_n;
 wire               vga_text_pixel_on;
 wire               vga_graph_axis_pixel_on;
-wire               vga_graph_plot_pixel_on;
+wire               vga_graph_plot_s1_pixel_on;
+wire               vga_graph_plot_s2_pixel_on;
+wire               vga_graph_plot_s3_pixel_on;
+wire               vga_graph_plot_s4_pixel_on;
 wire        [31:0] vga_sensor1_magnitude_squared_gauss_q16;
+wire        [31:0] vga_sensor2_magnitude_squared_gauss_q16;
+wire        [31:0] vga_sensor3_magnitude_squared_gauss_q16;
+wire        [31:0] vga_sensor4_magnitude_squared_gauss_q16;
+wire signed [15:0] vga_source_x_q10;
+wire signed [15:0] vga_source_y_q10;
+wire signed [15:0] vga_source_z_q10;
+wire               vga_source_valid;
 wire signed [15:0] vga_sensor1_x =
     use_calibrated_display ? cal_mag1_x : $signed(mag1_x);
 wire signed [15:0] vga_sensor1_y =
     use_calibrated_display ? cal_mag1_y : $signed(mag1_y);
 wire signed [15:0] vga_sensor1_z =
     use_calibrated_display ? cal_mag1_z : $signed(mag1_z);
+wire signed [15:0] vga_sensor2_x =
+    use_calibrated_display ? cal_mag2_x : $signed(mag2_x);
+wire signed [15:0] vga_sensor2_y =
+    use_calibrated_display ? cal_mag2_y : $signed(mag2_y);
+wire signed [15:0] vga_sensor2_z =
+    use_calibrated_display ? cal_mag2_z : $signed(mag2_z);
+wire signed [15:0] vga_sensor3_x =
+    use_calibrated_display ? cal_mag3_x : $signed(mag3_x);
+wire signed [15:0] vga_sensor3_y =
+    use_calibrated_display ? cal_mag3_y : $signed(mag3_y);
+wire signed [15:0] vga_sensor3_z =
+    use_calibrated_display ? cal_mag3_z : $signed(mag3_z);
+wire signed [15:0] vga_sensor4_x =
+    use_calibrated_display ? cal_mag4_x : $signed(mag4_x);
+wire signed [15:0] vga_sensor4_y =
+    use_calibrated_display ? cal_mag4_y : $signed(mag4_y);
+wire signed [15:0] vga_sensor4_z =
+    use_calibrated_display ? cal_mag4_z : $signed(mag4_z);
 
 mag_magnitude_squared u_sensor1_magnitude_squared (
     .field_x_counts                (vga_sensor1_x),
     .field_y_counts                (vga_sensor1_y),
     .field_z_counts                (vga_sensor1_z),
     .magnitude_squared_gauss_q16   (vga_sensor1_magnitude_squared_gauss_q16)
+);
+
+mag_magnitude_squared u_sensor2_magnitude_squared (
+    .field_x_counts                (vga_sensor2_x),
+    .field_y_counts                (vga_sensor2_y),
+    .field_z_counts                (vga_sensor2_z),
+    .magnitude_squared_gauss_q16   (vga_sensor2_magnitude_squared_gauss_q16)
+);
+
+mag_magnitude_squared u_sensor3_magnitude_squared (
+    .field_x_counts                (vga_sensor3_x),
+    .field_y_counts                (vga_sensor3_y),
+    .field_z_counts                (vga_sensor3_z),
+    .magnitude_squared_gauss_q16   (vga_sensor3_magnitude_squared_gauss_q16)
+);
+
+mag_magnitude_squared u_sensor4_magnitude_squared (
+    .field_x_counts                (vga_sensor4_x),
+    .field_y_counts                (vga_sensor4_y),
+    .field_z_counts                (vga_sensor4_z),
+    .magnitude_squared_gauss_q16   (vga_sensor4_magnitude_squared_gauss_q16)
+);
+
+mag_source_tracker u_mag_source_tracker (
+    .clk                     (CLOCK_50),
+    .rst_n                   (key3down),
+    .update                  (vga_frame_start),
+    .sensor1_h2_gauss_q16    (vga_sensor1_magnitude_squared_gauss_q16),
+    .sensor2_h2_gauss_q16    (vga_sensor2_magnitude_squared_gauss_q16),
+    .sensor3_h2_gauss_q16    (vga_sensor3_magnitude_squared_gauss_q16),
+    .sensor4_h2_gauss_q16    (vga_sensor4_magnitude_squared_gauss_q16),
+    .source_x_q10            (vga_source_x_q10),
+    .source_y_q10            (vga_source_y_q10),
+    .source_z_q10            (vga_source_z_q10),
+    .source_valid            (vga_source_valid)
 );
 
 vga_timing_640x480 u_vga_timing (
@@ -693,24 +756,43 @@ vga_timing_640x480 u_vga_timing (
     .vsync_n      (vga_vsync_n)
 );
 
-vga_sensor1_dashboard u_vga_dashboard (
+vga_four_sensor_dashboard u_vga_dashboard (
     .clk                     (CLOCK_50),
     .rst_n                   (key3down),
     .frame_start             (vga_frame_start),
     .active_video            (vga_active_video),
     .pixel_x                 (vga_pixel_x),
     .pixel_y                 (vga_pixel_y),
-    .sensor_x                (vga_sensor1_x),
-    .sensor_y                (vga_sensor1_y),
-    .sensor_z                (vga_sensor1_z),
-    .magnitude_squared_gauss_q16 (vga_sensor1_magnitude_squared_gauss_q16),
+    .sensor1_x               (vga_sensor1_x),
+    .sensor1_y               (vga_sensor1_y),
+    .sensor1_z               (vga_sensor1_z),
+    .sensor2_x               (vga_sensor2_x),
+    .sensor2_y               (vga_sensor2_y),
+    .sensor2_z               (vga_sensor2_z),
+    .sensor3_x               (vga_sensor3_x),
+    .sensor3_y               (vga_sensor3_y),
+    .sensor3_z               (vga_sensor3_z),
+    .sensor4_x               (vga_sensor4_x),
+    .sensor4_y               (vga_sensor4_y),
+    .sensor4_z               (vga_sensor4_z),
+    .sensor1_h2_gauss_q16    (vga_sensor1_magnitude_squared_gauss_q16),
+    .sensor2_h2_gauss_q16    (vga_sensor2_magnitude_squared_gauss_q16),
+    .sensor3_h2_gauss_q16    (vga_sensor3_magnitude_squared_gauss_q16),
+    .sensor4_h2_gauss_q16    (vga_sensor4_magnitude_squared_gauss_q16),
+    .source_x_q10            (vga_source_x_q10),
+    .source_y_q10            (vga_source_y_q10),
+    .source_z_q10            (vga_source_z_q10),
+    .source_valid            (vga_source_valid),
     .calibrated_mode         (use_calibrated_display),
     .calibration_collecting  (calibration_collecting),
     .calibration_calculating (calibration_calculating),
     .calibration_done        (calibration_done),
     .text_pixel_on           (vga_text_pixel_on),
     .graph_axis_pixel_on     (vga_graph_axis_pixel_on),
-    .graph_plot_pixel_on     (vga_graph_plot_pixel_on)
+    .graph_plot_s1_pixel_on  (vga_graph_plot_s1_pixel_on),
+    .graph_plot_s2_pixel_on  (vga_graph_plot_s2_pixel_on),
+    .graph_plot_s3_pixel_on  (vga_graph_plot_s3_pixel_on),
+    .graph_plot_s4_pixel_on  (vga_graph_plot_s4_pixel_on)
 );
 
 assign VGA_CLK     = vga_pixel_clk;
@@ -719,11 +801,15 @@ assign VGA_VS      = vga_vsync_n;
 assign VGA_BLANK_N = vga_active_video;
 assign VGA_SYNC_N  = 1'b0;
 assign VGA_R       = vga_text_pixel_on       ? 8'hFF :
+                     vga_graph_plot_s2_pixel_on ? 8'hFF :
+                     vga_graph_plot_s4_pixel_on ? 8'hFF :
                      vga_graph_axis_pixel_on ? 8'h60 : 8'h00;
 assign VGA_G       = vga_text_pixel_on       ? 8'hFF :
-                     vga_graph_plot_pixel_on ? 8'hFF :
+                     vga_graph_plot_s1_pixel_on ? 8'hFF :
+                     vga_graph_plot_s4_pixel_on ? 8'hFF :
                      vga_graph_axis_pixel_on ? 8'h60 : 8'h00;
 assign VGA_B       = vga_text_pixel_on       ? 8'hFF :
+                     vga_graph_plot_s3_pixel_on ? 8'hFF :
                      vga_graph_axis_pixel_on ? 8'h60 : 8'h00;
 
 endmodule
