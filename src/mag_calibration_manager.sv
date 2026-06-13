@@ -22,6 +22,7 @@ module mag_calibration_manager (
     output wire               collecting,
     output wire               calculating,
     output wire               calibration_done,
+    output wire               calibration_error,
 
     output wire signed [15:0] s1_offset_x,
     output wire signed [15:0] s1_offset_y,
@@ -61,12 +62,16 @@ module mag_calibration_manager (
         S_DONE        = 3'd7;
 
     localparam [31:0] UNITY_SCALE_Q16 = 32'd65_536;
+    // At +/-2 G sensitivity, Earth's field normally produces a radius of
+    // several thousand counts. Smaller spans indicate incomplete rotation.
+    localparam [15:0] MIN_VALID_RADIUS = 16'd2_500;
 
     reg [2:0] state;
     reg [3:0] sensors_seen;
     reg [3:0] axis_index;
     reg [19:0] radius_sum;
     reg [15:0] target_radius;
+    reg        coverage_error;
 
     reg signed [15:0] min_value [0:11];
     reg signed [15:0] max_value [0:11];
@@ -148,6 +153,7 @@ module mag_calibration_manager (
             axis_index <= 4'd0;
             radius_sum <= 20'd0;
             target_radius <= 16'd0;
+            coverage_error <= 1'b0;
             divider_start <= 1'b0;
             divider_numerator <= 48'd0;
             divider_denominator <= 32'd0;
@@ -168,6 +174,7 @@ module mag_calibration_manager (
                 axis_index <= 4'd0;
                 radius_sum <= 20'd0;
                 target_radius <= 16'd0;
+                coverage_error <= 1'b0;
 
                 for (i = 0; i < 12; i = i + 1) begin
                     min_value[i] <= 16'sh7FFF;
@@ -210,6 +217,8 @@ module mag_calibration_manager (
                             offset_value[axis_index] <= current_extrema_sum >>> 1;
                             radius_value[axis_index] <= current_radius;
                             radius_sum <= radius_sum + current_radius;
+                            if (current_radius < MIN_VALID_RADIUS)
+                                coverage_error <= 1'b1;
                         end else begin
                             offset_value[axis_index] <= 16'sd0;
                             radius_value[axis_index] <= 16'd0;
@@ -255,7 +264,13 @@ module mag_calibration_manager (
 
                     S_SCALE_WAIT: begin
                         if (divider_done) begin
-                            scale_value_q16[axis_index] <= divider_quotient[31:0];
+                            if ((divider_quotient[31:0] < 32'd32_768) ||
+                                (divider_quotient[31:0] > 32'd131_072)) begin
+                                scale_value_q16[axis_index] <= UNITY_SCALE_Q16;
+                                coverage_error <= 1'b1;
+                            end else begin
+                                scale_value_q16[axis_index] <= divider_quotient[31:0];
+                            end
 
                             if (axis_index == 4'd11) begin
                                 state <= S_DONE;
@@ -282,7 +297,8 @@ module mag_calibration_manager (
                          (state == S_MEAN_WAIT) ||
                          (state == S_SCALE_START) ||
                          (state == S_SCALE_WAIT);
-    assign calibration_done = (state == S_DONE);
+    assign calibration_done = (state == S_DONE) && !coverage_error;
+    assign calibration_error = (state == S_DONE) && coverage_error;
 
     assign s1_offset_x = offset_value[0];
     assign s1_offset_y = offset_value[1];

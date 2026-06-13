@@ -164,6 +164,12 @@ module qmc5883l_ctrl (
     localparam DELAY_20MS = 20'd1_000_000;
     reg [19:0] delay_cnt;
 
+    // Read exactly once per configured 200 Hz sensor output period.  Reading
+    // faster can return duplicate samples, which corrupts frequency analysis.
+    localparam SAMPLE_PERIOD_CYCLES = 18'd250_000;
+    reg [17:0] sample_period_cnt;
+    reg        sample_due;
+
     // =========================================================================
     // FSM state encoding
     // =========================================================================
@@ -212,7 +218,8 @@ module qmc5883l_ctrl (
         S_RD_ZMSB_LAT     = 6'd32,
         S_ASSEMBLE        = 6'd33,
 
-        S_ERROR_RETRY     = 6'd34;
+        S_ERROR_RETRY     = 6'd34,
+        S_WAIT_SAMPLE     = 6'd35;
 
     reg [5:0] state;
 
@@ -234,6 +241,8 @@ module qmc5883l_ctrl (
             i2c_cmd     <= CMD_IDLE;
             i2c_tx_data <= 8'd0;
             delay_cnt   <= 20'd0;
+            sample_period_cnt <= 18'd0;
+            sample_due  <= 1'b0;
             chip_id     <= 8'd0;
             chip_id_valid <= 1'b0;
             init_done   <= 1'b0;
@@ -252,6 +261,18 @@ module qmc5883l_ctrl (
             // Default: do not start a new I2C command unless a state below requests it.
             i2c_go <= 1'b0;
             sample_valid <= 1'b0;
+
+            if (init_done) begin
+                if (sample_period_cnt == SAMPLE_PERIOD_CYCLES - 1'b1) begin
+                    sample_period_cnt <= 18'd0;
+                    sample_due <= 1'b1;
+                end else begin
+                    sample_period_cnt <= sample_period_cnt + 1'b1;
+                end
+            end else begin
+                sample_period_cnt <= 18'd0;
+                sample_due <= 1'b0;
+            end
 
             // If any write/address byte gets NACKed, retry from chip-ID read.
             if (i2c_done && i2c_ack_err) begin
@@ -448,6 +469,7 @@ module qmc5883l_ctrl (
                     // Sequence: XL, XH, YL, YH, ZL, ZH
                     // ---------------------------------------------------------
                     S_RD_START: begin
+                        sample_due <= 1'b0;
                         i2c_cmd <= CMD_START;
                         i2c_go  <= 1'b1;
                         state   <= S_RD_ADDRW;
@@ -556,8 +578,13 @@ module qmc5883l_ctrl (
                             mag_y <= {buf_yh, buf_yl};
                             mag_z <= {buf_zh, buf_zl};
                             sample_valid <= 1'b1;
-                            state <= S_RD_START;
+                            state <= S_WAIT_SAMPLE;
                         end
+                    end
+
+                    S_WAIT_SAMPLE: begin
+                        if (sample_due)
+                            state <= S_RD_START;
                     end
 
                     S_ERROR_RETRY: begin
