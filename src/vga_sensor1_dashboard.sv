@@ -18,10 +18,14 @@ module vga_four_sensor_dashboard (
     input  wire signed [15:0] sensor4_x,
     input  wire signed [15:0] sensor4_y,
     input  wire signed [15:0] sensor4_z,
-    input  wire        [31:0] sensor1_h2_gauss_q16,
-    input  wire        [31:0] sensor2_h2_gauss_q16,
-    input  wire        [31:0] sensor3_h2_gauss_q16,
-    input  wire        [31:0] sensor4_h2_gauss_q16,
+    input  wire        [31:0] sensor1_h2_75hz_gauss_q16,
+    input  wire        [31:0] sensor2_h2_75hz_gauss_q16,
+    input  wire        [31:0] sensor3_h2_75hz_gauss_q16,
+    input  wire        [31:0] sensor4_h2_75hz_gauss_q16,
+    input  wire        [31:0] sensor1_h2_45hz_gauss_q16,
+    input  wire        [31:0] sensor2_h2_45hz_gauss_q16,
+    input  wire        [31:0] sensor3_h2_45hz_gauss_q16,
+    input  wire        [31:0] sensor4_h2_45hz_gauss_q16,
     input  wire               calibrated_mode,
     input  wire               calibration_collecting,
     input  wire               calibration_calculating,
@@ -37,18 +41,23 @@ module vga_four_sensor_dashboard (
 
     localparam [9:0] GRAPH_LEFT   = 10'd96;
     localparam [9:0] GRAPH_RIGHT  = 10'd607;
-    localparam [9:0] GRAPH_TOP    = 10'd272;
+    localparam [9:0] GRAPH_TOP    = 10'd336;
     localparam [9:0] GRAPH_BOTTOM = 10'd447;
+    localparam [7:0] GRAPH_HEIGHT = 8'd111;
     localparam [31:0] GRAPH_FULL_SCALE_Q16 = 32'd1_048_576; // 16.000 G^2
 
     reg signed [15:0] snapshot_s1_x, snapshot_s1_y, snapshot_s1_z;
     reg signed [15:0] snapshot_s2_x, snapshot_s2_y, snapshot_s2_z;
     reg signed [15:0] snapshot_s3_x, snapshot_s3_y, snapshot_s3_z;
     reg signed [15:0] snapshot_s4_x, snapshot_s4_y, snapshot_s4_z;
-    reg        [31:0] snapshot_s1_h2_gauss_q16;
-    reg        [31:0] snapshot_s2_h2_gauss_q16;
-    reg        [31:0] snapshot_s3_h2_gauss_q16;
-    reg        [31:0] snapshot_s4_h2_gauss_q16;
+    reg        [31:0] snapshot_s1_h2_75hz_gauss_q16;
+    reg        [31:0] snapshot_s2_h2_75hz_gauss_q16;
+    reg        [31:0] snapshot_s3_h2_75hz_gauss_q16;
+    reg        [31:0] snapshot_s4_h2_75hz_gauss_q16;
+    reg        [31:0] snapshot_s1_h2_45hz_gauss_q16;
+    reg        [31:0] snapshot_s2_h2_45hz_gauss_q16;
+    reg        [31:0] snapshot_s3_h2_45hz_gauss_q16;
+    reg        [31:0] snapshot_s4_h2_45hz_gauss_q16;
     reg               snapshot_calibrated_mode;
     reg               snapshot_collecting;
     reg               snapshot_calculating;
@@ -106,10 +115,14 @@ module vga_four_sensor_dashboard (
             snapshot_s4_x <= 16'sd0;
             snapshot_s4_y <= 16'sd0;
             snapshot_s4_z <= 16'sd0;
-            snapshot_s1_h2_gauss_q16 <= 32'd0;
-            snapshot_s2_h2_gauss_q16 <= 32'd0;
-            snapshot_s3_h2_gauss_q16 <= 32'd0;
-            snapshot_s4_h2_gauss_q16 <= 32'd0;
+            snapshot_s1_h2_75hz_gauss_q16 <= 32'd0;
+            snapshot_s2_h2_75hz_gauss_q16 <= 32'd0;
+            snapshot_s3_h2_75hz_gauss_q16 <= 32'd0;
+            snapshot_s4_h2_75hz_gauss_q16 <= 32'd0;
+            snapshot_s1_h2_45hz_gauss_q16 <= 32'd0;
+            snapshot_s2_h2_45hz_gauss_q16 <= 32'd0;
+            snapshot_s3_h2_45hz_gauss_q16 <= 32'd0;
+            snapshot_s4_h2_45hz_gauss_q16 <= 32'd0;
             snapshot_calibrated_mode <= 1'b0;
             snapshot_collecting <= 1'b0;
             snapshot_calculating <= 1'b0;
@@ -129,22 +142,26 @@ module vga_four_sensor_dashboard (
             snapshot_s4_x <= sensor4_x;
             snapshot_s4_y <= sensor4_y;
             snapshot_s4_z <= sensor4_z;
-            snapshot_s1_h2_gauss_q16 <= sensor1_h2_gauss_q16;
-            snapshot_s2_h2_gauss_q16 <= sensor2_h2_gauss_q16;
-            snapshot_s3_h2_gauss_q16 <= sensor3_h2_gauss_q16;
-            snapshot_s4_h2_gauss_q16 <= sensor4_h2_gauss_q16;
+            snapshot_s1_h2_75hz_gauss_q16 <= sensor1_h2_75hz_gauss_q16;
+            snapshot_s2_h2_75hz_gauss_q16 <= sensor2_h2_75hz_gauss_q16;
+            snapshot_s3_h2_75hz_gauss_q16 <= sensor3_h2_75hz_gauss_q16;
+            snapshot_s4_h2_75hz_gauss_q16 <= sensor4_h2_75hz_gauss_q16;
+            snapshot_s1_h2_45hz_gauss_q16 <= sensor1_h2_45hz_gauss_q16;
+            snapshot_s2_h2_45hz_gauss_q16 <= sensor2_h2_45hz_gauss_q16;
+            snapshot_s3_h2_45hz_gauss_q16 <= sensor3_h2_45hz_gauss_q16;
+            snapshot_s4_h2_45hz_gauss_q16 <= sensor4_h2_45hz_gauss_q16;
             snapshot_calibrated_mode <= calibrated_mode;
             snapshot_collecting <= calibration_collecting;
             snapshot_calculating <= calibration_calculating;
             snapshot_done <= calibration_done;
             plot_history_s1[history_write_index] <=
-                magnitude_to_plot_level(sensor1_h2_gauss_q16);
+                magnitude_to_plot_level(sensor1_h2_75hz_gauss_q16);
             plot_history_s2[history_write_index] <=
-                magnitude_to_plot_level(sensor2_h2_gauss_q16);
+                magnitude_to_plot_level(sensor2_h2_75hz_gauss_q16);
             plot_history_s3[history_write_index] <=
-                magnitude_to_plot_level(sensor3_h2_gauss_q16);
+                magnitude_to_plot_level(sensor3_h2_75hz_gauss_q16);
             plot_history_s4[history_write_index] <=
-                magnitude_to_plot_level(sensor4_h2_gauss_q16);
+                magnitude_to_plot_level(sensor4_h2_75hz_gauss_q16);
             history_write_index <= history_write_index + 1'b1;
 
             if (!history_full)
@@ -164,9 +181,9 @@ module vga_four_sensor_dashboard (
         reg [39:0] scaled_magnitude;
         begin
             if (magnitude_q16 >= GRAPH_FULL_SCALE_Q16) begin
-                magnitude_to_plot_level = 8'd175;
+                magnitude_to_plot_level = GRAPH_HEIGHT;
             end else begin
-                scaled_magnitude = magnitude_q16 * 8'd175;
+                scaled_magnitude = magnitude_q16 * GRAPH_HEIGHT;
                 magnitude_to_plot_level = scaled_magnitude >> 20;
             end
         end
@@ -246,20 +263,32 @@ module vga_four_sensor_dashboard (
         end
     endfunction
 
-    function automatic [319:0] sensor_line;
+    function automatic [319:0] sensor_axis_line;
         input [7:0] sensor_digit;
         input signed [15:0] x_counts;
         input signed [15:0] y_counts;
         input signed [15:0] z_counts;
-        input [31:0] h2_q16;
         begin
-            sensor_line = {
+            sensor_axis_line = {
                 "S", sensor_digit,
                 " X", milligauss_to_ascii(counts_to_milligauss(x_counts)),
                 " Y", milligauss_to_ascii(counts_to_milligauss(y_counts)),
                 " Z", milligauss_to_ascii(counts_to_milligauss(z_counts)),
-                " H2 ", h2_q16_to_ascii(h2_q16),
-                {4{" "}}
+                {14{" "}}
+            };
+        end
+    endfunction
+
+    function automatic [319:0] sensor_h2_line;
+        input [7:0] sensor_digit;
+        input [31:0] h2_75hz_q16;
+        input [31:0] h2_45hz_q16;
+        begin
+            sensor_h2_line = {
+                "S", sensor_digit,
+                " H75 ", h2_q16_to_ascii(h2_75hz_q16),
+                " H45 ", h2_q16_to_ascii(h2_45hz_q16),
+                {16{" "}}
             };
         end
     endfunction
@@ -294,38 +323,54 @@ module vga_four_sensor_dashboard (
                 snapshot_calibrated_mode ? "CAL " : "RAW ",
                 "CALIB ",
                 status_text,
-                {14{" "}}
+                {15{" "}}
             };
-            5'd5:  line_text = {"AXES IN GAUSS, H2 IN GAUSS^2", {12{" "}}};
-            5'd7:  line_text = sensor_line(
+            5'd5:  line_text = {"AXES GAUSS H75 H45 IN GAUSS^2", {11{" "}}};
+            5'd7:  line_text = sensor_axis_line(
                 "1",
                 snapshot_s1_x,
                 snapshot_s1_y,
-                snapshot_s1_z,
-                snapshot_s1_h2_gauss_q16
+                snapshot_s1_z
             );
-            5'd9:  line_text = sensor_line(
+            5'd8:  line_text = sensor_h2_line(
+                "1",
+                snapshot_s1_h2_75hz_gauss_q16,
+                snapshot_s1_h2_45hz_gauss_q16
+            );
+            5'd10: line_text = sensor_axis_line(
                 "2",
                 snapshot_s2_x,
                 snapshot_s2_y,
-                snapshot_s2_z,
-                snapshot_s2_h2_gauss_q16
+                snapshot_s2_z
             );
-            5'd11: line_text = sensor_line(
+            5'd11: line_text = sensor_h2_line(
+                "2",
+                snapshot_s2_h2_75hz_gauss_q16,
+                snapshot_s2_h2_45hz_gauss_q16
+            );
+            5'd13: line_text = sensor_axis_line(
                 "3",
                 snapshot_s3_x,
                 snapshot_s3_y,
-                snapshot_s3_z,
-                snapshot_s3_h2_gauss_q16
+                snapshot_s3_z
             );
-            5'd13: line_text = sensor_line(
+            5'd14: line_text = sensor_h2_line(
+                "3",
+                snapshot_s3_h2_75hz_gauss_q16,
+                snapshot_s3_h2_45hz_gauss_q16
+            );
+            5'd16: line_text = sensor_axis_line(
                 "4",
                 snapshot_s4_x,
                 snapshot_s4_y,
-                snapshot_s4_z,
-                snapshot_s4_h2_gauss_q16
+                snapshot_s4_z
             );
-            5'd15: line_text = {"H2 GRAPH 0-16 G^2  S1 S2 S3 S4", {10{" "}}};
+            5'd17: line_text = sensor_h2_line(
+                "4",
+                snapshot_s4_h2_75hz_gauss_q16,
+                snapshot_s4_h2_45hz_gauss_q16
+            );
+            5'd19: line_text = {"H75 GRAPH 0-16 G^2  S1 S2 S3 S4", {9{" "}}};
             5'd28: line_text = {"S1 GREEN S2 RED S3 BLUE S4 YELLOW", {7{" "}}};
             default: line_text = {40{" "}};
         endcase

@@ -51,6 +51,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE mag_calibration_manager.sv
 set_global_assignment -name SYSTEMVERILOG_FILE mag_calibrator.sv
 set_global_assignment -name SYSTEMVERILOG_FILE mag_magnitude_squared.sv
 set_global_assignment -name SYSTEMVERILOG_FILE carrier_reference_75hz.sv
+set_global_assignment -name SYSTEMVERILOG_FILE carrier_reference_45hz.sv
 set_global_assignment -name SYSTEMVERILOG_FILE mag_lockin_vector_75hz.sv
 set_global_assignment -name SYSTEMVERILOG_FILE lcd_ctrl.sv
 set_global_assignment -name SYSTEMVERILOG_FILE uart_tx.sv

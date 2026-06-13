@@ -679,6 +679,10 @@ wire        [31:0] vga_sensor1_magnitude_squared_gauss_q16;
 wire        [31:0] vga_sensor2_magnitude_squared_gauss_q16;
 wire        [31:0] vga_sensor3_magnitude_squared_gauss_q16;
 wire        [31:0] vga_sensor4_magnitude_squared_gauss_q16;
+wire        [31:0] vga_sensor1_magnitude_squared_45hz_gauss_q16;
+wire        [31:0] vga_sensor2_magnitude_squared_45hz_gauss_q16;
+wire        [31:0] vga_sensor3_magnitude_squared_45hz_gauss_q16;
+wire        [31:0] vga_sensor4_magnitude_squared_45hz_gauss_q16;
 wire signed [15:0] vga_sensor1_x =
     use_calibrated_display ? cal_mag1_x : $signed(mag1_x);
 wire signed [15:0] vga_sensor1_y =
@@ -704,7 +708,7 @@ wire signed [15:0] vga_sensor4_y =
 wire signed [15:0] vga_sensor4_z =
     use_calibrated_display ? cal_mag4_z : $signed(mag4_z);
 
-// Coherent 75 Hz magnetic-field extraction.  Each QMC controller emits a
+// Coherent 75 Hz and 45 Hz magnetic-field extraction.  Each QMC controller emits a
 // one-clock valid pulse after its own I2C read completes.  The pulses are not
 // guaranteed to overlap exactly, so collect them into a mask and advance the
 // lock-in once all active sensors have produced one fresh sample.
@@ -712,8 +716,12 @@ reg carrier_sample_tick;
 reg [3:0] carrier_sample_seen;
 wire signed [15:0] carrier_sine_q15;
 wire signed [15:0] carrier_cosine_q15;
+wire signed [15:0] carrier45_sine_q15;
+wire signed [15:0] carrier45_cosine_q15;
 wire [3:0] carrier_sensor_result_valid;
-assign carrier_result_valid = &carrier_sensor_result_valid;
+wire [3:0] carrier45_sensor_result_valid;
+assign carrier_result_valid =
+    (&carrier_sensor_result_valid) | (&carrier45_sensor_result_valid);
 
 wire [3:0] carrier_sample_seen_next =
     carrier_sample_seen | (qmc_sample_valid & ACTIVE_SENSOR_MASK);
@@ -740,6 +748,14 @@ carrier_reference_75hz u_carrier_reference_75hz (
     .sample_tick (carrier_sample_tick),
     .sine_q15    (carrier_sine_q15),
     .cosine_q15  (carrier_cosine_q15)
+);
+
+carrier_reference_45hz u_carrier_reference_45hz (
+    .clk         (CLOCK_50),
+    .rst_n       (key3down),
+    .sample_tick (carrier_sample_tick),
+    .sine_q15    (carrier45_sine_q15),
+    .cosine_q15  (carrier45_cosine_q15)
 );
 
 mag_lockin_vector_75hz #(
@@ -802,6 +818,66 @@ mag_lockin_vector_75hz #(
     .result_valid                  (carrier_sensor_result_valid[3])
 );
 
+mag_lockin_vector_75hz #(
+    .WINDOW_SAMPLES (100)
+) u_sensor1_lockin_45hz (
+    .clk                           (CLOCK_50),
+    .rst_n                         (key3down),
+    .sample_tick                   (carrier_sample_tick),
+    .field_x_counts                (vga_sensor1_x),
+    .field_y_counts                (vga_sensor1_y),
+    .field_z_counts                (vga_sensor1_z),
+    .sine_q15                      (carrier45_sine_q15),
+    .cosine_q15                    (carrier45_cosine_q15),
+    .carrier_l2_squared_gauss_q16  (vga_sensor1_magnitude_squared_45hz_gauss_q16),
+    .result_valid                  (carrier45_sensor_result_valid[0])
+);
+
+mag_lockin_vector_75hz #(
+    .WINDOW_SAMPLES (100)
+) u_sensor2_lockin_45hz (
+    .clk                           (CLOCK_50),
+    .rst_n                         (key3down),
+    .sample_tick                   (carrier_sample_tick),
+    .field_x_counts                (vga_sensor2_x),
+    .field_y_counts                (vga_sensor2_y),
+    .field_z_counts                (vga_sensor2_z),
+    .sine_q15                      (carrier45_sine_q15),
+    .cosine_q15                    (carrier45_cosine_q15),
+    .carrier_l2_squared_gauss_q16  (vga_sensor2_magnitude_squared_45hz_gauss_q16),
+    .result_valid                  (carrier45_sensor_result_valid[1])
+);
+
+mag_lockin_vector_75hz #(
+    .WINDOW_SAMPLES (100)
+) u_sensor3_lockin_45hz (
+    .clk                           (CLOCK_50),
+    .rst_n                         (key3down),
+    .sample_tick                   (carrier_sample_tick),
+    .field_x_counts                (vga_sensor3_x),
+    .field_y_counts                (vga_sensor3_y),
+    .field_z_counts                (vga_sensor3_z),
+    .sine_q15                      (carrier45_sine_q15),
+    .cosine_q15                    (carrier45_cosine_q15),
+    .carrier_l2_squared_gauss_q16  (vga_sensor3_magnitude_squared_45hz_gauss_q16),
+    .result_valid                  (carrier45_sensor_result_valid[2])
+);
+
+mag_lockin_vector_75hz #(
+    .WINDOW_SAMPLES (100)
+) u_sensor4_lockin_45hz (
+    .clk                           (CLOCK_50),
+    .rst_n                         (key3down),
+    .sample_tick                   (carrier_sample_tick),
+    .field_x_counts                (vga_sensor4_x),
+    .field_y_counts                (vga_sensor4_y),
+    .field_z_counts                (vga_sensor4_z),
+    .sine_q15                      (carrier45_sine_q15),
+    .cosine_q15                    (carrier45_cosine_q15),
+    .carrier_l2_squared_gauss_q16  (vga_sensor4_magnitude_squared_45hz_gauss_q16),
+    .result_valid                  (carrier45_sensor_result_valid[3])
+);
+
 vga_timing_640x480 u_vga_timing (
     .clk_50       (CLOCK_50),
     .rst_n        (key3down),
@@ -833,10 +909,14 @@ vga_four_sensor_dashboard u_vga_dashboard (
     .sensor4_x               (vga_sensor4_x),
     .sensor4_y               (vga_sensor4_y),
     .sensor4_z               (vga_sensor4_z),
-    .sensor1_h2_gauss_q16    (vga_sensor1_magnitude_squared_gauss_q16),
-    .sensor2_h2_gauss_q16    (vga_sensor2_magnitude_squared_gauss_q16),
-    .sensor3_h2_gauss_q16    (vga_sensor3_magnitude_squared_gauss_q16),
-    .sensor4_h2_gauss_q16    (vga_sensor4_magnitude_squared_gauss_q16),
+    .sensor1_h2_75hz_gauss_q16 (vga_sensor1_magnitude_squared_gauss_q16),
+    .sensor2_h2_75hz_gauss_q16 (vga_sensor2_magnitude_squared_gauss_q16),
+    .sensor3_h2_75hz_gauss_q16 (vga_sensor3_magnitude_squared_gauss_q16),
+    .sensor4_h2_75hz_gauss_q16 (vga_sensor4_magnitude_squared_gauss_q16),
+    .sensor1_h2_45hz_gauss_q16 (vga_sensor1_magnitude_squared_45hz_gauss_q16),
+    .sensor2_h2_45hz_gauss_q16 (vga_sensor2_magnitude_squared_45hz_gauss_q16),
+    .sensor3_h2_45hz_gauss_q16 (vga_sensor3_magnitude_squared_45hz_gauss_q16),
+    .sensor4_h2_45hz_gauss_q16 (vga_sensor4_magnitude_squared_45hz_gauss_q16),
     .calibrated_mode         (use_calibrated_display),
     .calibration_collecting  (calibration_collecting),
     .calibration_calculating (calibration_calculating),
